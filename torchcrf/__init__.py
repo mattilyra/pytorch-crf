@@ -186,20 +186,21 @@ class CRF(nn.Module):
         score = self.start_transitions[tags[0]]
         score += emissions[0, torch.arange(batch_size), tags[0]]
 
-        for i in range(1, seq_length):
-            # Transition score to next tag, only added if next timestep is valid (mask == 1)
-            # shape: (batch_size,)
-            score += self.transitions[tags[i - 1], tags[i]] * mask[i]
+        # Transition score to next tag, only added if next timestep is valid (mask == 1)
+        # shape: (batch_size,)
+        score += (self.transitions[tags[:-1], tags[1:]] * mask[1:]).sum(dim=0)
 
-            # Emission score for next tag, only added if next timestep is valid (mask == 1)
-            # shape: (batch_size,)
-            score += emissions[i, torch.arange(batch_size), tags[i]] * mask[i]
+        # Emission score for next tag, only added if next timestep is valid (mask == 1)
+        # shape: (batch_size,)
+        seqidx = torch.arange(seq_length)
+        for i in range(batch_size):
+            score += (emissions[seqidx, i, tags[:, i]] * mask[seqidx, i]).sum()
 
         # End transition score
         # shape: (batch_size,)
         seq_ends = mask.long().sum(dim=0) - 1
         # shape: (batch_size,)
-        last_tags = tags[seq_ends, torch.arange(batch_size)]
+        last_tags = tags[seq_ends, :]
         # shape: (batch_size,)
         score += self.end_transitions[last_tags]
 
